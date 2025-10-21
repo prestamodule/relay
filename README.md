@@ -51,6 +51,7 @@ return [
             'url' => env('RELAY_GITHUB_SERVER_URL', 'http://localhost:8001/api'),
             'timeout' => 30,
             'transport' => \Prism\Relay\Enums\Transport::Http,
+            'requires_session' => false, // Set to true if the MCP server requires usage of the Mcp-Session-Id header
         ],
     ],
     'cache_duration' => env('RELAY_TOOLS_CACHE_DURATION', 60), // in minutes (0 to disable)

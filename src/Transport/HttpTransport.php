@@ -10,7 +10,10 @@ use Prism\Relay\Exceptions\TransportException;
 
 class HttpTransport implements Transport
 {
+    private const MCP_SESSION_ID_HEADER = 'Mcp-Session-Id';
+
     protected int $requestId = 0;
+    protected string $sessionId;
 
     /**
      * @param  array<string, mixed>  $config
@@ -23,6 +26,29 @@ class HttpTransport implements Transport
     public function start(): void {}
 
     /**
+     * Initializes a session with the MCP server for upcoming request
+     *
+     * @return void
+     */
+    public function initializeSession(): void
+    {
+        $this->sendRequest('initialize', [
+            'protocolVersion' => '2024-11-05',
+            'capabilities' => new \stdClass,
+            'clientInfo' => [
+                'name' => 'relay',
+                'version' => '1.0.0',
+            ],
+        ]);
+
+        // This one is just a ping, doesn't need actual response handling (but we could check for 200 response)
+        $this->sendHttpRequest([
+            'method' => 'notifications/initialized',
+            'jsonrpc' => '2.0',
+        ]);
+    }
+
+    /**
      * @param  array<string, mixed>  $params
      * @return array<string, mixed>
      *
@@ -31,6 +57,10 @@ class HttpTransport implements Transport
     #[\Override]
     public function sendRequest(string $method, array $params = []): array
     {
+        if ($this->requiresSession() && $method != 'initialize' && !$this->hasSession()) {
+            $this->initializeSession();
+        }
+
         $this->requestId++;
         $requestPayload = $this->createRequestPayload($method, $params);
 
@@ -72,13 +102,23 @@ class HttpTransport implements Transport
      */
     protected function sendHttpRequest(array $payload): Response
     {
-        return Http::timeout($this->getTimeout())
+        $request = Http::timeout($this->getTimeout())
             ->acceptJson()
             ->when(
                 $this->hasApiKey(),
                 fn ($http) => $http->withToken($this->getApiKey())
-            )
-            ->post($this->getServerUrl(), $payload);
+            );
+
+        if ($this->hasSession()) {
+            $request->withHeader(self::MCP_SESSION_ID_HEADER, $this->sessionId);
+        }
+
+        return $request->post($this->getServerUrl(), $payload);
+    }
+
+    protected function requiresSession(): bool
+    {
+        return $this->config['requires_session'] ?? false;
     }
 
     protected function getTimeout(): int
@@ -101,6 +141,11 @@ class HttpTransport implements Transport
         return $this->config['url'];
     }
 
+    protected function hasSession(): bool
+    {
+        return !empty($this->sessionId);
+    }
+
     /**
      * @return array<string, mixed>
      *
@@ -109,6 +154,9 @@ class HttpTransport implements Transport
     protected function processResponse(Response $response): array
     {
         $this->validateHttpResponse($response);
+
+        $this->extractSessionIdFromResponse($response);
+
         $jsonResponse = $response->json();
         $this->validateJsonRpcResponse($jsonResponse);
 
@@ -168,5 +216,20 @@ class HttpTransport implements Transport
         throw new TransportException(
             "JSON-RPC error: {$errorMessage} (code: {$errorCode}){$detailsSuffix}"
         );
+    }
+
+    /**
+     * Extracts the session ID returned as a header from the given response
+     *
+     * @param \Illuminate\Http\Client\Response $response
+     * @return void
+     */
+    protected function extractSessionIdFromResponse(Response $response): void
+    {
+        $mcpHeader = $response->header(self::MCP_SESSION_ID_HEADER);
+
+        if (!empty($mcpHeader)) {
+            $this->sessionId = (string)$mcpHeader;
+        }
     }
 }
