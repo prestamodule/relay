@@ -363,11 +363,9 @@ class Relay
 
     protected function extractBaseToolName(string $toolName): string
     {
-        if (str_starts_with($toolName, 'relay__')) {
-            $parts = explode('__', $toolName);
-            if (count($parts) >= 3) {
-                return end($parts);
-            }
+        $parts = explode('__', $toolName);
+        if (count($parts) >= 2) {
+            return end($parts);
         }
 
         return $toolName;
