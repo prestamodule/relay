@@ -137,7 +137,7 @@ class Relay
      */
     protected function createBaseTool(array $definition): Tool
     {
-        $toolName = "relay__{$this->serverName}__{$definition['name']}";
+        $toolName = "{$this->serverName}__{$definition['name']}";
 
         $tool = new Tool;
         $tool->as($toolName);
