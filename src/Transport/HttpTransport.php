@@ -107,6 +107,10 @@ class HttpTransport implements Transport
             ->when(
                 $this->hasApiKey(),
                 fn ($http) => $http->withToken($this->getApiKey())
+            )
+            ->when(
+                $this->hasHeaders(),
+                fn ($http) => $http->withHeaders($this->getHeaders())
             );
 
         if ($this->hasSession()) {
@@ -131,9 +135,24 @@ class HttpTransport implements Transport
         return isset($this->config['api_key']) && $this->config['api_key'] !== null;
     }
 
+    protected function hasHeaders(): bool
+    {
+        return isset($this->config['headers'])
+            && is_array($this->config['headers'])
+            && (isset($this->config['headers']) && $this->config['headers'] !== []);
+    }
+
     protected function getApiKey(): string
     {
         return (string) ($this->config['api_key'] ?? '');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function getHeaders(): array
+    {
+        return $this->config['headers'] ?? [];
     }
 
     protected function getServerUrl(): string
