@@ -31,4 +31,9 @@ class RelayFactory
     {
         return $this->make($serverName, $config)->tools();
     }
+
+    public function withToken(string $token): RelayBuilder
+    {
+        return new RelayBuilder($token);
+    }
 }
